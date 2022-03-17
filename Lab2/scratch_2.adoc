@@ -1,0 +1,117 @@
+:imagesdir: Imagess
+:toc:
+:toc-title: Оглавление
+= Лабораторная работа №3
+
+== Задание
+
+Сделать бегущий огонь из 4 светодиодов, подключенных к портам C.5, C.8, C.9, A.5
+
+== 1. Код программы
+Откроем проект Lab1 как в лабораторной работе №2, настроим проект, подключим плату и проверим, что всё работает.
+Для того, чтобы реализовать бегущий огонь необходимо подключить библиотеки портов A и C.
+
+Код представлен ниже:
+[source, c]
+
+#include "rccregisters.hpp" // for RCC
+#include "gpioaregisters.hpp" //for Gpioa
+#include "gpiocregisters.hpp" //for Gpioc
+
+Для того, чтобы бегущий огонь имел какую-то нибудь задержку, чтобы светодиоды переключались не моментально необходимо
+реализовать функцию задержки (delay).
+
+Код функции delay представлен ниже:
+[source, c]
+
+int delay(int cycles)
+{
+for(int i = 0; i<cycles; ++i)
+{
+asm volatile("");
+}
+return 1;
+}
+
+Входная переменная cycles задает время задержки. Команда asm volatile("") означает пустую ассебмлерную процедуру и если тут ничего не будет, то цикл не проигнорируется.
+
+Затем необходимо написать код фукнции main с включением каждого диода с некоторой заданной задержкой.
+
+Код функции main представлен ниже:
+[source, c]
+
+int main()
+{//Подать тактирование на порт А
+RCC::AHB1ENR::GPIOAEN::Enable::Set(); //Подать тактирование на порт C
+RCC::AHB1ENR::GPIOCEN::Enable::Set(); //Порта A. 5 на вывод
+GPIOA::MODER::MODER5::Output::Set();  //Порта C.5, C.8, C.9 на вывод
+GPIOC::MODER::MODER5::Output::Set();
+GPIOC::MODER::MODER8::Output::Set();
+GPIOC::MODER::MODER9::Output::Set();
+    for(;;)
+    {
+        GPIOC::ODR::ODR5::High::Set();
+        delay(1000000);
+        GPIOC::ODR::ODR5::Low::Set();
+        delay(1000000);
+        GPIOC::ODR::ODR8::High::Set();
+        delay(1000000);
+        GPIOC::ODR::ODR8::Low::Set();
+        delay(1000000);
+        GPIOC::ODR::ODR9::High::Set();
+        delay(1000000);
+        GPIOC::ODR::ODR9::Low::Set();
+        delay(1000000);
+        GPIOA::ODR::ODR5::High::Set();
+        delay(1000000);
+        GPIOA::ODR::ODR5::Low::Set();
+        delay(1000000);
+    }
+    return 1;
+}
+
+Цикл for(;;) - бесконечный цикл, который постоянно включает и выключает светодиоды с задержкой по времени, заданной в
+функции delay.
+
+Код бегущего огня с возвратом представлен ниже:
+[source, c]
+
+int main()
+{//Подать тактирование на порт А
+RCC::AHB1ENR::GPIOAEN::Enable::Set();//Подать тактирование на порт C
+RCC::AHB1ENR::GPIOCEN::Enable::Set();//Порта A. 5 на вывод
+GPIOA::MODER::MODER5::Output::Set();//Порта C.5, C.8, C.9 на вывод
+GPIOC::MODER::MODER5::Output::Set();
+GPIOC::MODER::MODER8::Output::Set();
+GPIOC::MODER::MODER9::Output::Set();
+    for(;;)
+    {
+        GPIOC::ODR::ODR5::High::Set();
+        delay(1000000);
+        GPIOC::ODR::ODR5::Low::Set();
+        delay(1000000);
+        GPIOC::ODR::ODR8::High::Set();
+        delay(1000000);
+        GPIOC::ODR::ODR8::Low::Set();
+        delay(1000000);
+        GPIOC::ODR::ODR9::High::Set();
+        delay(1000000);
+        GPIOC::ODR::ODR9::Low::Set();
+        delay(1000000);
+        GPIOA::ODR::ODR5::High::Set();
+        delay(1000000);
+        GPIOA::ODR::ODR5::Low::Set();
+        delay(1000000);
+        GPIOC::ODR::ODR9::High::Set();
+        delay(1000000);
+        GPIOC::ODR::ODR9::Low::Set();
+        delay(1000000);
+        GPIOC::ODR::ODR8::High::Set();
+        delay(1000000);
+        GPIOC::ODR::ODR8::Low::Set();
+        delay(1000000);
+    }
+    return 1;
+}
+
+image::VID_20211013_225914 (2).gif[]

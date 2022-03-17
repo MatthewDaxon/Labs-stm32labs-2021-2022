@@ -1,0 +1,122 @@
+:imagesdir: Imagesss
+:toc:
+:toc-title: Оглавление
+= Лабораторная работа №3
+
+== Задание
+1)Написать программу, которая моргает всеми 4 светодиодами, но без использования магии с GPIOA::ODR::ODR5::High::Set()
+
+2)Нужно описать, как работает операция ИСКЛЮЧАЮЩЕЕ ИЛИ и как поменять значения переменных местами, без привлечения
+третьей переменной.
+
+== 1) Код программы.
+
+
+
+[source, c]
+#include <rccregisters.hpp> // for RCC
+#include <gpiocregisters.hpp> //for GPIOC
+#include <gpioaregisters.hpp> //for GPIOA
+std::uint32_t SystemCoreClock = 16'000'000U;
+extern "C" {
+int __low_level_init(void)
+    {
+        RCC::CR::HSION::On::Set();
+        while (RCC::CR::HSIRDY::NotReady::IsSet())
+    {
+    }
+        RCC::CFGR::SW::Hsi::Set();
+        while (!RCC::CFGR::SWS::Hsi::IsSet())
+    {
+    }
+        RCC::APB2ENR::SYSCFGEN::Enable::Set();
+        return 1;
+    }
+    }
+      int delay(int cycles)
+        {
+         for (int i =0; i< cycles; ++i)
+        {
+    asm volatile ("");
+   }
+   }
+   int main()
+{
+    RCC::AHB1ENR::GPIOAEN::Enable::Set();
+    RCC::AHB1ENR::GPIOCEN::Enable::Set();
+    GPIOA::MODER::MODER5::Output::Set();
+    GPIOC::MODER::MODER5::Output::Set();
+    GPIOC::MODER::MODER8::Output::Set();
+    GPIOC::MODER::MODER9::Output::Set();
+    //GPIOA::ODR::ODR5::High::Set();
+    uint32_t* ptrPaOdr = reinterpret_cast<uint32_t*>(0x40020014);
+    uint32_t* ptrPcOdr = reinterpret_cast<uint32_t*>(0x40020814);
+    for(;;)
+    {
+        *ptrPaOdr ^= static_cast<uint32_t>(1 << 5);
+        *ptrPcOdr ^= static_cast<uint32_t>(1 << 5);
+        *ptrPcOdr ^= static_cast<uint32_t>(1 << 9);
+        *ptrPcOdr ^= static_cast<uint32_t>(1 << 8);
+        delay(1000000);
+        *ptrPaOdr ^= static_cast<uint32_t>(1 << 5);
+        *ptrPcOdr ^= static_cast<uint32_t>(1 << 5);
+        *ptrPcOdr ^= static_cast<uint32_t>(1 << 9);
+        *ptrPcOdr ^= static_cast<uint32_t>(1 << 8);
+        delay(1000000);
+    }
+    return 1;
+}
+
+На гифке ниже показано как работает программа на плате.
+
+image::3otch.gif[]
+== 2) Работа операции ИСКЛЮЧАЮЩЕЕ ИЛИ.
+
+Исключающее или выглядит так "^" и работает по принципу если значения разные то это истина, если одинаковые то это лож.
+Ниже приведина табличка:
+[source, c]
+z=x^y
+|x|y|z|
+|0|0|0|
+|0|1|1|
+|1|0|1|
+|1|1|0|
+
+Например 5^3=6
+[source, c]
+0101(5)
+0011(3)
+----
+0110(6)
+
+=== 2.1) Поменять значения переменных местами, без привлечения третьей переменной.
+Поменять значение можно несколько способами с помощью исключающего или. напрмер:
+
+1) a ^= b ^= a ^= b;
+
+или же ее можно представить в другом виде, как на втором примере.
+
+2)
+[source, c]
+a = a ^ b;
+b = b ^ a;
+a = a ^ b;
+
+Ниже представлена программа которая меняет значение с помощью Исключающего или.
+[source, c]
+#include <iostream>
+ int a=2;
+ int b=4;
+ int main()
+    {
+        a = a ^ b;
+        b = b ^ a;
+        a = a ^ b;
+       std::cout<<a<<std::endl;
+       std::cout<<b<<std::endl;
+      return 1;
+    }
+
+Ниже на рисунке показано окно вывода результата Terminal I/O.
+
+image::image-2021-10-14-17-37-55-542.png[]

@@ -1,0 +1,205 @@
+:imagesdir: Image6
+:toc:
+:toc-title: Оглавление
+= Отчет по лабораторной работе №6
+
+== Задание к работе
+----
+   1) Разрисовать архитектуру и дизайн ПО, а имеено классы, методы классов и взаимодействия
+классов в StarUML.
+   2) Написать программу которая, сразу после запуска должны моргать все светодиоды с частотой 3.33 Гц.
+   При нажатии на кнопку(нажатие определяется по её прижатию) режим моргания изменяется
+на режим Елочки (Зажигаются поочередно первый, через 300 миллисекунд второй, через еще
+300 миллисекунд третий и еще через 300 миллисекунду 4 светодиод), потом в обратном порядке
+гаснут
+
+----
+== 1) Создание архитектуры в StarUML
+Сначала следует начать с продумывания архитектуры. По методологии ООП.
+
+Объектно-ориентированное программирование (ООП) -  методология программирования, основанная
+на представлении программы в виде совокупности объектов, каждый из которых является
+экземпляром определённого класса, а классы образуют иерархию наследования
+
+Основные принципы ООП: абстракция, наследование, инкапсуляция и полиморфизм.
+
+*Абстракция* для выделения в моделируемом предмете важного для решения конкретной
+задачи по предмету, в конечном счёте — контекстное понимание предмета, формализуемое в виде
+класса;
+
+*Инкапсуляция* для быстрой и безопасной организации собственно иерархической управляемости:
+чтобы было достаточно простой команды «что делать», без одновременного уточнения как именно
+делать, так как это уже другой уровень управления;
+
+*Наследование* для быстрой и безопасной организации родственных понятий: чтобы было достаточно
+на каждом иерархическом шаге учитывать только изменения, не дублируя всё остальное, учтённое
+на предыдущих шагах;
+
+*Полиморфизм* для определения точки, в которой единое управление лучше распараллелить или
+наоборот — собрать воедино.
+
+Для создания архитектуры будем рабоать в программе StarUML. Ниже на рисунке 1 представлена
+построенная мною архитектура.
+
+image::image-otch61.png[]
+
+Рисунок 1
+
+== 2) Написание кода
+
+=== 1. Создание класса LED
+
+Для начала создадим в проекте папку LED, а потом в ней сам файл Led.h.
+
+image::image-otch6.2.png[]
+
+Рисунок 2
+
+В данном файле будут прописанны 2 функции, которые будут вызыватся в зависимости от отжатия
+кнопки. Заказщик указал чтоб светодиоды то загарались то гасли через 3,3 Гц. Что соответствует
+0,3 с. А так же реализована "елочка".
+ Ниже представлен код программы.
+[source, c]
+#pragma once
+#include "gpiocregisters.hpp" //for GPIOC
+#include "gpioaregisters.hpp" //for GPIOA
+class LED
+{
+    public:
+    void delay (uint32_t che)
+        {
+            for(uint32_t i = 0; i < che; ++i)
+            {
+            asm volatile ("");
+            }
+        }
+    public:
+        void fun1()
+        {
+            GPIOA::ODR::ODR5::High::Set() ;
+            GPIOC::ODR::ODR5::High::Set() ;
+            GPIOC::ODR::ODR8::High::Set() ;
+            GPIOC::ODR::ODR9::High::Set() ;
+            delay(300300);
+            GPIOA::ODR::ODR5::Low::Set() ;
+            GPIOC::ODR::ODR5::Low::Set() ;
+            GPIOC::ODR::ODR8::Low::Set() ;
+            GPIOC::ODR::ODR9::Low::Set() ;
+            delay(300300);
+        }
+        public:
+        void fun2()
+        {
+            GPIOC::ODR::ODR5::High::Set() ;
+            delay(300000);
+            GPIOC::ODR::ODR8::High::Set() ;
+            delay(300000);
+            GPIOC::ODR::ODR9::High::Set() ;
+            delay(300000);
+            GPIOA::ODR::ODR5::High::Set() ;
+            delay(300000);
+            GPIOA::ODR::ODR5::Low::Set() ;
+            delay(300000);
+            GPIOC::ODR::ODR9::Low::Set() ;
+            delay(300000);
+            GPIOC::ODR::ODR8::Low::Set() ;
+            delay(300000);
+            GPIOC::ODR::ODR5::Low::Set() ;
+            delay(300000);
+        }
+};
+
+=== 2. Создание класса Butter
+
+Сначала делаем теже действия что и с файлом LED(Рисунок 2). Задача данного класса обеспечить
+контроль за кнопкой, а точнее в каком она состоянии (0 или 1). Код программы представлен ниже.
+[source, c]
+#pragma once
+#include "gpiocregisters.hpp"
+class Button
+{
+  public:
+    bool IsPressed()
+    {
+     bool result = false;
+     if (GPIOC::IDR::IDR13::Low::IsSet())
+      {
+        while(GPIOC::IDR::IDR13::Low::IsSet())
+          {
+          }
+      result = true;
+      }
+     return result;
+    }
+};
+
+=== 3. Код освной программы
+
+Для начала как и в прошлых лабараторных работах следует подключить шины для светодиодов и кнопки
+, как и из сами. Далее будет идти вызов созданных двух функций по состоянию кнопки(flag).
+Код программы представлен ниже.
+
+[source, c]
+#include <rccregisters.hpp> // for RCC
+#include <gpiocregisters.hpp> //for GPIOC
+#include <gpioaregisters.hpp> //for GPIOA
+#include "C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\LED\led.h" // for LED
+#include "C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\Button\Button.h"// for Button
+std::uint32_t SystemCoreClock = 16'000'000U;
+extern "C"
+{
+  int __low_level_init(void)
+{
+//Switch on external 16 MHz oscillator
+RCC::CR::HSEON::On::Set();
+while (RCC::CR::HSERDY::NotReady::IsSet())
+{
+}
+//Switch system clock on external oscillator
+RCC::CFGR::SW::Hse::Set();
+while (!RCC::CFGR::SWS::Hse::IsSet())
+{
+}
+RCC::APB2ENR::SYSCFGEN::Enable::Set();
+RCC::AHB1ENR::GPIOAEN::Enable::Set();
+RCC::AHB1ENR::GPIOCEN::Enable::Set();
+  GPIOA::OSPEEDR::OSPEEDR5::MediumSpeed::Set();
+  GPIOA::MODER::MODER5::Output::Set();
+  GPIOC::OSPEEDR::OSPEEDR5::MediumSpeed::Set();
+  GPIOC::MODER::MODER5::Output::Set();
+  GPIOC::OSPEEDR::OSPEEDR8::MediumSpeed::Set();
+  GPIOC::MODER::MODER8::Output::Set();
+  GPIOC::OSPEEDR::OSPEEDR9::MediumSpeed::Set();
+  GPIOC::MODER::MODER9::Output::Set();
+  GPIOC::OSPEEDR::OSPEEDR13::MediumSpeed::Set();
+  GPIOC::MODER::MODER13::Input::Set();
+return 1;
+}
+}
+/*LED<GPIOC, 5> led1;
+LED<GPIOA, 5> led2;
+LED<GPIOC, 8> led3;
+LED<GPIOC, 9> led4;*/
+bool flag = false;
+LED MyLed;
+Button userButton;
+int main()
+{
+for (;;)
+{
+if (flag == false)
+{    MyLed.fun1();    }
+else
+{    MyLed.fun2();    }
+if (userButton.IsPressed())
+{    flag = !flag;    }
+}
+return 1;
+}
+
+Я сталкнулся с проблемой вставок в основную программу, ссылок на классы.
+Из-за это пришлость оставлять полный путь всей ссылки.:)
+
+== 3) Результат программы
+
+image::VID_20211111_225024_(1).gif[]

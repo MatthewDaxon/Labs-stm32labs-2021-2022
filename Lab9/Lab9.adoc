@@ -1,0 +1,276 @@
+:imagesdir: Image9
+:toc:
+:toc-title: Оглавление
+= Отчет по лабораторной работе №9
+
+== Задание к работе
+----
+Задание к лабораторной работе №9
+
+ Контроллер светодиодов должен поддерживать 3 режима работы светодоиодов (моргают все светодиоды, и режим "елочка",
+моргают четные и нечетный светодиоды в противофазе). Следует подключить таймер, и с помощью него при переключении
+режимов увеличивать задержку.
+----
+
+== 1) Создание архитектуры в StarUML
+Была создана архитектура программы, для ЛБ №7/8. Ее вид представден ниже на рисунке.
+
+image::image-78.2.png[]
+
+Уже написанна программа по данной схеме,она была представлена в ЛБ №7/8.
+
+== 2) Программа
+=== 1. Button
+
+Программа для работы кноки.
+[source, c]
+#pragma once
+#include "gpiocregisters.hpp" //for GPIOC
+class IButton
+{
+    public:
+    virtual bool IsPressed()=0;
+};
+
+[source, c]
+#pragma once
+#include <gpiocregisters.hpp>
+#include <C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\Button\IButton.h>
+template <typename Port, uint32_t pinNum>
+class Button : public IButton
+{
+   public:
+    bool IsPressed() override
+    {
+     bool result= false;
+     if((Port::IDR::Get()&(1U << pinNum)) == 0)
+     {result = true;}
+     return result;
+    }
+};
+
+=== 2. Led
+[source, c]
+#pragma once
+#include <C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\LED\ILed.h>
+template <auto* ...pArg>
+struct Leds
+{
+  ILed* pLeds[sizeof ...(pArg)]={pArg...};
+    void toggle()
+    {
+        for(auto it: pLeds)
+        {
+         it->toggle();
+        }
+    }
+    void SwitchOff()
+    {
+        for(auto it: pLeds)
+        {
+         it->SwitchOff();
+        }
+    }
+};
+
+[source, c]
+#pragma once
+class ILed
+{
+public:
+ virtual void toggle()=0;
+ virtual void SwitchOff()=0;
+};
+
+[source, c]
+#pragma once
+#include "gpiocregisters.hpp" //for GPIOC
+#include "gpioaregisters.hpp" //for GPIOA
+#include <C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\LED\ILed.h>
+#include "C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\All.h"
+#include "C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\Tree.h"
+#include "C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\Chess.h"
+template <typename Port, uint32_t pinNum>
+class led : public ILed
+{
+  public:
+    void toggle() override
+    {
+     Port::ODR::Toggle(1U << pinNum);
+    }
+    void SwitchOff() override
+    {
+     Port::ODR::Set(1U << pinNum);
+    }
+};
+
+=== 3. Класс All
+
+Данный класс реализован для постоянного моргания светодиодов.
+
+[source, c]
+#pragma once
+#include "C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\imods.h"
+template <auto& TLeds>
+class All: public IMode
+{
+public:
+    void toggle() override
+    {
+      TLeds.toggle();
+    }
+    void init() override
+    {
+      TLeds.SwitchOff();
+    }
+  };
+
+=== 4. Класс Chess
+
+Данный класс реализован для попеременног моргания 1 и 3, 2 и 4 светодиодов.
+[source, c]
+#pragma once
+#include "C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\imods.h"
+template <auto& TLeds>
+class Chess: public IMode
+{
+public:
+    void toggle() override
+    {
+      TLeds.toggle();
+    }
+    void init() override
+    {
+      TLeds.SwitchOff();
+      uint32_t index=0;
+      for(auto it: TLeds.pLeds)
+      {
+        if((index%2U)==0U)
+        {
+          it->toggle();
+        }
+        index++;
+      }
+    }
+  };
+
+=== 5. Класс Tree
+
+Данный класс реализован для режима "Елочка".
+[source, c]
+#pragma once
+#include "C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\imods.h"
+#include "C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\Modes.h"
+template <auto& TLeds>
+class Tree: public IMode
+{
+ public:
+    void toggle() override
+    {
+      TLeds.pLeds[index]->toggle();
+        index++;
+      if(index>= std::size(TLeds.pLeds))
+        {index=0U;}
+    }
+    void init() override
+    {
+     index=0U;
+     TLeds.SwitchOff();
+    }
+  private:
+  uint32_t index=0U;
+};
+
+=== 6. main
+
+[source, c]
+#include "rccregisters.hpp" // for RCC
+#include "gpioaregisters.hpp" //for Gpioa
+#include "gpiocregisters.hpp" //for GPIOC
+#include <C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\LED\led.h>
+#include <C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\LED\Leds.h>
+#include <C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\LED\ILed.h>
+#include "C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\All.h"
+#include "C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\Tree.h"
+#include "C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\Chess.h"
+#include <C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\Button\Button.h>
+#include <C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\Button\IButton.h>
+#include "C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\Modes.h"
+#include "C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\imods.h"
+#include "tim2registers.hpp"   //for SPI2
+#include "nvicregisters.hpp"  //for NVIC
+constexpr auto SystemClock = 16'000'000U;
+constexpr auto TimerClock = 1'000U;
+constexpr auto TimerPrescaller =SystemClock/TimerClock;
+extern "C"
+{
+int __low_level_init(void)
+  {
+//Switch on internal 16 MHz oscillator
+RCC::CR::HSEON::On::Set() ;
+    while (!RCC::CR::HSERDY::Ready::IsSet())
+    {
+    }
+//Switch system clock on external oscillator
+RCC::CFGR::SW::Hse::Set() ;
+    while (!RCC::CFGR::SWS::Hse::IsSet())
+    {
+    }
+RCC::AHB1ENR::GPIOAEN::Enable::Set();
+RCC::AHB1ENR::GPIOCEN::Enable::Set();
+GPIOC::MODER::MODER8::Output::Set();  //PORTC 8
+GPIOC::MODER::MODER5::Output::Set();  //PORTC 5
+GPIOC::MODER::MODER9::Output::Set();  //PORTC 9
+GPIOA::MODER::MODER5::Output::Set();  //PORTC 5
+    RCC::APB1ENR::TIM2EN::Enable::Set();
+  return 1;
+  }
+}
+void DelayMs (uint32_t value)
+{
+const auto delay =  TimerClock * value/ 1000U ;
+TIM2::PSC::Write(TimerPrescaller);
+TIM2::ARR::Write(delay);
+TIM2::SR::UIF::NoInterruptPending::Set();
+TIM2::CNT::Write(0U);
+TIM2::CR1::CEN::Enable::Set();
+    while(TIM2::SR::UIF::NoInterruptPending::IsSet())
+    {
+    }
+TIM2::SR::UIF::NoInterruptPending::Set();
+TIM2::CR1::CEN::Disable::Set();
+ }
+led<GPIOA, 5U> led1;
+led<GPIOC, 9U> led2;
+led<GPIOC, 8U> led3;
+led<GPIOC, 5U> led4;
+Leds<&led1, &led2, &led3, &led4> leds;
+Button<GPIOC, 13U> userButton;
+Chess<leds> chessMode;
+Tree<leds> treeMode;
+All<leds> allMode;
+Modes<&allMode, &chessMode, &treeMode > modesMode;
+int main()
+  {
+    auto delay = 200U;
+    for (;;)
+    {
+    if (delay >1000U)
+        {
+        delay=200U;
+        }
+    if (userButton.IsPressed())
+        {
+        modesMode.NextMode();
+        delay+=200;
+        }
+    modesMode.UpDate();
+    DelayMs(delay);
+  }
+    return 1;
+}
+
+== 3) Результат программы
+
+image::VID_9.gif[]
+

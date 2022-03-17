@@ -1,0 +1,171 @@
+:imagesdir: Imagessss
+:toc:
+:toc-title: Оглавление
+= Лабораторная работа №4
+
+== Задание
+
+1) Сделать мигание всех 4 светодиодов.
+
+2) Тактирование системной частоты произвести с модуля PLL, так, чтобы системная частота была 30 МГц.
+
+== 1) Код программы.
+
+За основу берем код программы написанный для прошлой лабараторной работы. Код программы предстиавлен наже.
+
+[source, c]
+#include <rccregisters.hpp> // for RCC
+#include <gpiocregisters.hpp> //for GPIOC
+#include <gpioaregisters.hpp> //for GPIOA
+std::uint32_t SystemCoreClock = 16'000'000U;
+extern "C" {
+int __low_level_init(void)
+    {
+        RCC::CR::HSION::On::Set();
+        while (RCC::CR::HSIRDY::NotReady::IsSet())
+    {
+    }
+        RCC::CFGR::SW::Hsi::Set();
+        while (!RCC::CFGR::SWS::Hsi::IsSet())
+    {
+    }
+        RCC::APB2ENR::SYSCFGEN::Enable::Set();
+        return 1;
+    }
+    }
+      int delay(int cycles)
+        {
+         for (int i =0; i< cycles; ++i)
+        {
+    asm volatile ("");
+   }
+   }
+   int main()
+{
+    RCC::AHB1ENR::GPIOAEN::Enable::Set();
+    RCC::AHB1ENR::GPIOCEN::Enable::Set();
+    GPIOA::MODER::MODER5::Output::Set();
+    GPIOC::MODER::MODER5::Output::Set();
+    GPIOC::MODER::MODER8::Output::Set();
+    GPIOC::MODER::MODER9::Output::Set();
+    //GPIOA::ODR::ODR5::High::Set();
+    uint32_t* ptrPaOdr = reinterpret_cast<uint32_t*>(0x40020014);
+    uint32_t* ptrPcOdr = reinterpret_cast<uint32_t*>(0x40020814);
+    for(;;)
+    {
+        *ptrPaOdr ^= static_cast<uint32_t>(1 << 5);
+        *ptrPcOdr ^= static_cast<uint32_t>(1 << 5);
+        *ptrPcOdr ^= static_cast<uint32_t>(1 << 9);
+        *ptrPcOdr ^= static_cast<uint32_t>(1 << 8);
+        delay(1000000);
+        *ptrPaOdr ^= static_cast<uint32_t>(1 << 5);
+        *ptrPcOdr ^= static_cast<uint32_t>(1 << 5);
+        *ptrPcOdr ^= static_cast<uint32_t>(1 << 9);
+        *ptrPcOdr ^= static_cast<uint32_t>(1 << 8);
+        delay(1000000);
+    }
+    return 1;
+}
+
+Далее стоит подключить систему ФАПЧ PLL, наже представлена программа по подключению:
+
+[source, c]
+      while (RCC::CR::HSIRDY::NotReady::IsSet());
+      RCC::PLLCFGR::PLLN0::Set(**);
+      RCC::PLLCFGR::PLLM0::Set(**);
+      RCC::CR::PLLON::On::Set();
+      while(RCC::CR::PLLRDY::NotReady::IsSet());
+      RCC::CFGR::SW::Pll::Set();
+      while(!RCC::CFGR::SWS::Pll::IsSet());
+
+При отладке возникли ошибки, их я устронил в файлах rccregisters.hpp и rccfieldvalues.hpp.
+
+[source, c]
+struct PLLCFGR : public RegisterBase<0x40023804, 32, ReadWriteMode>
+{
+using PLLQ0 = RCC_PLLCFGR_PLLQ_Values<RCC::PLLCFGR, 24, 4, ReadWriteMode, RCCPLLCFGRBase> ;
+using PLLSRC = RCC_PLLCFGR_PLLSRC_Values<RCC::PLLCFGR, 22, 1, ReadWriteMode, RCCPLLCFGRBase> ;
+using PLLP0 = RCC_PLLCFGR_PLLP_Values<RCC::PLLCFGR, 16, 2, ReadWriteMode, RCCPLLCFGRBase> ;
+//using PLLN0 = RCC_PLLCFGR_PLLN_Values<RCC::PLLCFGR, 6, 9, ReadWriteMode, RCCPLLCFGRBase> ;
+//using FieldValues = RCC_PLLCFGR_PLLM_Values<RCC::PLLCFGR, 0, 5, NoAccess, NoAccess> ;
+using PLLM0 = RCC_PLLCFGR_PLLM_Values<RCC::PLLCFGR, 0, 5, ReadWriteMode, RCCPLLCFGRBase> ;
+} ;
+
+и
+
+[source, c]
+template <typename Reg, size_t offset, size_t size, typename AccessMode, typename BaseType>
+struct RCC_CR_PLLRDY_Values: public RegisterField<Reg, offset, size, AccessMode>
+{
+//using Unclocked = FieldValue<RCC_CR_PLLRDY_Values, BaseType, 0U> ;
+//using Locked = FieldValue<RCC_CR_PLLRDY_Values, BaseType, 1U> ;
+using NotReady = FieldValue<RCC_CR_PLLRDY_Values, BaseType, 0U> ;
+using Ready = FieldValue<RCC_CR_PLLRDY_Values, BaseType, 1U> ;
+} ;
+
+== 2) Расчет коэфициентов для частоты 30МГц
+
+Для расчета мы имеем формулу:
+====
+f(general clock output) = f(PLL clock input) × PLLN / PLLM × PLLP;
+====
+Известно, что f(PLL clock input)=16 МГц; PLLP=2 и f(PLL clock input)= 30 МГц.
+
+Из данного уравнения имеем что отношение PLLN / PLLM = 3,75. И при этом коэф. М>16 и N>50. Из данного условия выбираем
+ N=60 и M=16.
+
+Программа будет иметь вид:
+[source, c]
+#include <rccregisters.hpp> // for RCC
+#include <gpiocregisters.hpp> //for GPIOC
+#include <gpioaregisters.hpp> //for GPIOA
+std::uint32_t SystemCoreClock = 16'000'000U;
+extern "C"
+{
+  int __low_level_init(void)
+  {
+      while (RCC::CR::HSIRDY::NotReady::IsSet());
+      RCC::PLLCFGR::PLLN0::Set(60);
+      RCC::PLLCFGR::PLLM0::Set(16);
+      RCC::CR::PLLON::On::Set();
+      while(RCC::CR::PLLRDY::NotReady::IsSet());
+      RCC::CFGR::SW::Pll::Set();
+      while(!RCC::CFGR::SWS::Pll::IsSet());
+  }
+}
+int delay(int cycles)
+{
+  for (int i =0; i< cycles; ++i)
+  {
+    asm volatile ("");
+  }
+}
+int main()
+{
+    RCC::AHB1ENR::GPIOAEN::Enable::Set();
+    RCC::AHB1ENR::GPIOCEN::Enable::Set();
+    GPIOA::MODER::MODER5::Output::Set();
+    GPIOC::MODER::MODER5::Output::Set();
+    GPIOC::MODER::MODER8::Output::Set();
+    GPIOC::MODER::MODER9::Output::Set();
+    uint32_t* ptrPaOdr = reinterpret_cast<uint32_t*>(0x40020014);
+    uint32_t* ptrPcOdr = reinterpret_cast<uint32_t*>(0x40020814);
+    for(;;)
+    {
+        *ptrPaOdr ^= static_cast<uint32_t>(1 << 5);
+        *ptrPcOdr ^= static_cast<uint32_t>(1 << 5);
+        *ptrPcOdr ^= static_cast<uint32_t>(1 << 9);
+        *ptrPcOdr ^= static_cast<uint32_t>(1 << 8);
+        delay(1000000);
+        *ptrPaOdr ^= static_cast<uint32_t>(1 << 5);
+        *ptrPcOdr ^= static_cast<uint32_t>(1 << 5);
+        *ptrPcOdr ^= static_cast<uint32_t>(1 << 9);
+        *ptrPcOdr ^= static_cast<uint32_t>(1 << 8);
+        delay(1000000);
+    }
+}
+
+При отладке, видно что на микроконтролере светодиоды значительно чаще моршгают. Это видно на гифке ниже.
+
+
+image::4otch.gif[]
