@@ -13,11 +13,11 @@
 ----
 
 == 1) Создание архитектуры в StarUML
-Была создана архитектура программы, для ЛБ №7/8. Ее вид представден ниже на рисунке.
+Перед построением программы составим ее архитектуру.
 
 image::image-78.2.png[]
 
-Уже написанна программа по данной схеме,она была представлена в ЛБ №7/8.
+Поскольку данная работа является продолжение старой, весь код представлять смысла особого нет,он был представлен в ЛБ №7/8.
 
 == 2) Программа
 === 1. Button
@@ -217,11 +217,11 @@ RCC::CFGR::SW::Hse::Set() ;
     {
     }
 RCC::AHB1ENR::GPIOAEN::Enable::Set();
-RCC::AHB1ENR::GPIOCEN::Enable::Set();
-GPIOC::MODER::MODER8::Output::Set();  //PORTC 8
-GPIOC::MODER::MODER5::Output::Set();  //PORTC 5
-GPIOC::MODER::MODER9::Output::Set();  //PORTC 9
-GPIOA::MODER::MODER5::Output::Set();  //PORTC 5
+RCC::AHB1ENR::GPIOCEN::Enable::Set(); //Подали тактирование на порт GPIOC
+GPIOC::MODER::MODER8::Output::Set();  //Настроили порт PORTC.8 на выход
+GPIOC::MODER::MODER5::Output::Set();  //Настроили порт PORTC.5 на выход
+GPIOC::MODER::MODER9::Output::Set();  //Настроили порт PORTC.9 на выход
+GPIOA::MODER::MODER5::Output::Set();  //Настроили порт PORTC.5 на выход
     RCC::APB1ENR::TIM2EN::Enable::Set();
   return 1;
   }
