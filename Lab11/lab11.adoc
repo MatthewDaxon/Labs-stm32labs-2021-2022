@@ -1,0 +1,324 @@
+:imagesdir: Image11
+:toc:
+:toc-title: Оглавление
+= Отчет по лабораторной работе №11
+
+== Задание к работе
+----
+
+Написать программу, которая позволяет моргать светодиодами,
+с использованием операционных систем реального времени.
+
+----
+
+----
+Выполнили студенты группы КЭ-415, Мисюрев А. и Васильев М.
+----
+
+== 1) Операционная система реального времени OCPB
+
+Перед тем, как рассмотреть способы структурирования
+встроенных приложений, разберемся с концепциями,
+используемых на компьютерах для выполнения программ
+с помощью операционной системы.
+
+Во-первых, существует выполнение программ в стиле DOS,
+когда программы выполняются поочередно.
+
+image::11_1.png[]
+
+Каждая программа запускается, реализуется и завершается.
+Мы используем, скажем, программу 1, затем программу 2,
+затем, возможно, сделаем перерыв, обратимся к программе
+3, а потом снова вернемся к программе 2. Второе
+использование программы 2 начинается заново: запуск
+не начинается с того места, где мы остановились до этого
+(кроме тех случаев, когда приложение само не
+предоставляет такую возможность).
+
+Структура ПО (программная модель) должна быть
+тщательно подобрана для каждого отдельно взятого
+встроенного приложения.
+
+В зависимости от требований приложения, встраиваемое
+ПО может обладать различными структурами разного уровня
+сложности, например:
+
+image::11_2.png[]
+
+Простейший вид – замкнутая структура, в которой
+происходит повторное выполнение одной и той же
+последовательности действий. Если приложение достаточно
+простое, чтобы его можно было внедрить подобным образом,
+это идеальный вариант: простой код надежен и понятен.
+Однако подобная структура крайне чувствительна к части
+кода, которая может занимать слишком много времени
+работы процессора, то есть некоторые команды выполняются
+так долго, что задерживают выполнение других задач
+приложения. Кроме того, эта модель плохо масштабируется:
+улучшение кода может стать проблемой, поскольку
+дополнения могут повлиять на производительность старого
+кода.
+
+Еще одной задаче ОСРВ является обеспечение
+многозадачности (или псевдомногозадачности – обеспечение
+мнимого видения одновременного исполнения нескольких
+операций).
+
+Многозадачность подразделяется на:
+
+1)Кооперативная - следующая задача не выполнится, пока
+полностью не завершена предыдущая;
+
+2)Вытесняющая – более высоко-приоритетная задача может
+вытеснить менее приоритетную.
+
+Существует 2 версии многозадачности:
+
+1) "Мягкого" реального времени(soft real time)
+
+2) "Жесткого" реального времени(hard real time)
+
+Операционная система, которая может обеспечить требуемое
+время выполнения задачи реального времени даже в худших
+случаях, называется операционной системой жёсткого
+реального времени. Система, которая может обеспечить
+требуемое время выполнения задачи реального времени в
+среднем, называется операционной системой мягкого
+реального времени.
+
+В системе мягкого реального времени задержка реакции
+считается восстановимой ошибкой, которая может привести
+к увеличению стоимости результатов и снижению
+производительности, но не является фатальной.
+
+Основное различие систем жёсткого и мягкого реального
+времени можно охарактеризовать так: система жёсткого
+реального времени никогда не опоздает с реакцией на
+событие, система мягкого реального времени не должна
+опаздывать с реакцией на событие.
+
+== 2) Структура программы в StarUML
+
+Для того что бы написать программу, стоит построить
+ее структуру в программе StarUML. Ее можно увидеть на
+рисунке ниже.
+
+image::11_3.png[]
+
+== 3) Написание кода
+
+Первым создаем класс MyFirstTask, для наследовние класса
+Thread с методом Execute.
+
+Программа "myfirsttask.h" представлена ниже.
+
+[source, c]
+#pragma once
+#include "thread.hpp" //for Thread
+ class MyFirstTask: public OsWrapper::Thread(200)
+  {
+    public:
+    void Execute() override;
+  };
+
+Следующим этапом создаем класс MyFirstTask, но уже
+для описания метода Execute.
+
+Программа "myfirsttask.cpp" представлена ниже.
+
+[source, c]
+#include "myfirsttask.h"
+#include "gpiocregisters.hpp"
+ void MyFirstTask::Execute()
+  {
+    for(;;)
+      {
+        GPIOC::ODR::Toggle(1 << 8);
+        Sleep(100ms);
+      }
+  }
+
+Далее класс ButtonTask для наследования класса Thread
+и для кнопки с помощью метода MailBox.
+
+Программа "buttontask.hpp" представлена ниже.
+
+[source, c]
+#pragma once
+#include "thread.hpp" //for Thread
+#include "event.hpp" //for Event
+#include "mailbox.hpp" //for MailBox
+ class ButtonTask: public OsWrapper::Thread(100)
+  {
+    public:
+        ButtonTask(OsWrapper::MailBox<int, 1>& mailBox): buttonMailBox(mailBox)
+         {
+         }
+    void Execute() override;
+      private:
+     OsWrapper::MailBox<int, 1>& buttonMailBox;
+     int myMessage = 1;
+  };
+
+Следующим этапом создадим класс ButtonTask, который отвечает
+за выключение светодиода при нажатии кнопки на 250 ms.
+
+Программа "buttontask.cpp" представлена ниже.
+
+[source, c]
+#include "buttontask.h"
+#include "gpiocregisters.hpp" //for GPIOC
+ void ButtonTask::Execute()
+  {
+   for(;;)
+    {
+      if(GPIOC::IDR::IDR13::Low::IsSet())
+        {
+         buttonMailBox.Put(myMessage);
+        }
+      Sleep(250ms);
+     }
+  }
+
+Так же создаем класс LedTask
+
+Программа "ledtask.h" представлена ниже.
+
+[source, c]
+#pragma once
+#include "thread.hpp" //for Thread
+#include "event.hpp"  //for Event
+#include "mailbox.hpp" //for MailBox
+ class LedTask: public OsWrapper::Thread(100)
+  {
+   public:
+    LedTask(OsWrapper::MailBox<int, 1>& mailBox): buttonMailBox(mailBox)
+     {
+     }
+    void Execute() override;
+   private:
+    OsWrapper::MailBox<int, 1>& buttonMailBox;
+    int myMessage = 1;
+  };
+
+Создаем класс LedTask. Для описания метода Execute, который
+проверяет нажатие кнопки, и включает 2 светодиода и через 100
+ms усыпляет.
+
+Программа "ledtask.cpp" представлена ниже.
+
+[source, c]
+#include "ledtask.h"
+#include "gpiocregisters.hpp" //for GPIOC
+ void LedTask::Execute()
+   {
+     for(;;)
+      {
+        if(buttonMailBox.Get(myMessage, 500))
+         {
+          GPIOC::ODR::Toggle(1 << 9);
+          GPIOC::ODR::Toggle(1 << 5);
+         }
+       Sleep(100ms);
+      }
+   }
+
+Создаем класс MySecondTask для наследования класса Thread
+с методом Execute.
+
+Программа "mysecondtask.h" представлена ниже.
+
+[source, c]
+#pragma once
+#include "thread.hpp" //for Thread
+class MySecondTask: public OsWrapper::Thread(200)
+{
+public:
+void Execute() override;
+};
+
+Класс MySecondTask описывает метод Execute, который
+зажигает два светодиода, а потом засыпает на 1500 ms.
+
+Код "mysecondtask.cpp" представлен ниже:
+
+[source, c]
+#include "mysecondtask.h"
+#include "gpiocregisters.hpp"
+ void MySecondTask::Execute()
+    {
+     for(;;)
+      {
+        GPIOC::ODR::Toggle(1 << 8);
+        GPIOC::ODR::Toggle(1 << 9);
+        SleepUntil(1500ms);
+      }
+    }
+
+Код "main.cpp" представлен ниже:
+
+[source, c]
+#include "rtos.hpp"         // for Rtos
+#include "mailbox.hpp"      // for Mailbox
+#include "event.hpp"        // for Event
+#include "mytask.hpp"       // for MyTask
+#include "led1task.hpp"     // for Led1Task
+#include "myfirsttask.h"    // for MyFirstTask
+#include "mysecondtask.h"   // for MySecondTask
+#include "buttontask.h"    // for ButtonTask
+#include "ledtask.h"    // for LedTask
+#include "rccregisters.hpp" // for RCC
+#include "Application/Diagnostic/GlobalStatus.hpp"
+#include <gpioaregisters.hpp>  // for GPIOA
+#include <gpiocregisters.hpp>  // for GPIOC
+std::uint32_t SystemCoreClock = 16'000'000U;
+extern "C" {
+int __low_level_init(void)
+{
+//Switch on external 16 MHz oscillator
+RCC::CR::HSION::On::Set();
+while (RCC::CR::HSIRDY::NotReady::IsSet())
+{
+  }
+  //Switch system clock on external oscillator
+  RCC::CFGR::SW::Hsi::Set();
+  while (!RCC::CFGR::SWS::Hsi::IsSet())
+ {
+  }
+  //Switch on clock on PortA and PortC
+  RCC::AHB1ENRPack<
+      RCC::AHB1ENR::GPIOCEN::Enable,
+      RCC::AHB1ENR::GPIOAEN::Enable
+  >::Set();
+  RCC::APB2ENR::SYSCFGEN::Enable::Set();
+  //LED1 on PortA.5, set PortA.5 as output
+  GPIOA::MODER::MODER5::Output::Set();
+  /* LED2 on PortC.9, LED3 on PortC.8, LED4 on PortC.5 so set PortC.5,8,9 as output */
+  GPIOC::MODERPack<
+      GPIOC::MODER::MODER5::Output,
+      GPIOC::MODER::MODER8::Output,
+      GPIOC::MODER::MODER9::Output
+  >::Set();
+  return 1;
+}
+}
+OsWrapper::MailBox<int, 1> buttonMailBox;
+ButtonTask buttonTask(buttonMailBox);
+LedTask ledTask(buttonMailBox);
+MyFirstTask myFirstTask;
+MySecondTask mySecondTask;
+int main()
+{
+using namespace OsWrapper;
+  Rtos::CreateThread(myFirstTask, "MyFirstTask", ThreadPriority::highest);
+  Rtos::CreateThread(buttonTask, "ButtonTask", ThreadPriority::normal);
+  Rtos::CreateThread(ledTask, "LedTask", ThreadPriority::normal);
+  Rtos::Start();
+  return 0;
+}
+
+== 4) Результат программы.
+
+image::VID_20220224_132414 (2).gif[]
+
