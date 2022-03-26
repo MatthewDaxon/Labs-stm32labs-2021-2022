@@ -42,8 +42,7 @@
 
 image::image-78.1.png[]
 
-Уже написанная программа по данной схеме, будет проще и понятнее, нежели первое представление в ЛБ №6.
-Но все равно данный подход к построению структуры программы не считается идеальным. Для это рассмотрим концепцию SOLID.
+Рассмотрим концепцию SOLID.
 
 == Принципы SOLID:
 
@@ -442,11 +441,11 @@ void delay(uint32_t value)
     asm volatile("");
   }
 }
-led<GPIOA, 5U> led1;
-led<GPIOC, 9U> led2;
+led<GPIOA, 5U> led1; //указываем на каком порту находится светодиод
+led<GPIOC, 9U> led2; // и каким портам моргать
 led<GPIOC, 8U> led3;
 led<GPIOC, 5U> led4;
-Leds<&led1, &led2, &led3, &led4> leds;
+Leds<&led1, &led2, &led3, &led4> leds; // создали объект класса Leds, а также передали указатели на те светодиоды, которыми моргать 
 Button<GPIOC, 13U> userButton;
 Chess<leds> chessMode;
 Tree<leds> treeMode;
