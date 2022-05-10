@@ -11,6 +11,13 @@
 2) Передать фразу "Hello World" с помощью интерфейса USART в приложении Terminal.
 
 ----
+=  *Введение* +
+
+*Прерывание* - это сигнал от программного или аппаратного обеспечения, сообщающий процессору о наступлении какого-либо события, требующего немедленного внимания. Прерывание извещает процессор о наступлении высокоприоритетного события, требующего прерывания текущего кода, выполняемого процессором.
+управление в прерванный код. +
+
+
+
 == 1) Включение таймеров TIM2 и TIM3.
 
 Первым делом следует подключить библиотеки "tim2registers.hpp" и "tim3registers.hpp".
@@ -94,16 +101,16 @@ __iar_init_vfp() ;
 __cmain() ;
 }
 
-=== 1.1) Подключение таймера TIM3
+=== 1.2) Подключение таймера TIM3
 
 [source, c]
     // TIM3
 RCC::APB1ENR::TIM3EN::Enable::Set();
 TIM3::PSC::Write(TimerPrescaler);
-TIM3::ARR::Write(500);
-TIM3::CNT::Write(0);
-NVIC::ISER0::Write(1<<29U);
-TIM3::DIER::UIE::Set(1);
+TIM3::ARR::Write(500); //счёт до прерывания
+TIM3::CNT::Write(0); //начало отсчёта от 0
+NVIC::ISER0::Write(1<<29U); //разрешение глобальное прерывания вектора от TIM3
+TIM3::DIER::UIE::Set(1); // разрешение прерывания по переполнению таймера
 TIM3::CR1::CEN::Set(1);
 
 Программа для функция прерывания таймера TIM3 представлена ниже.
@@ -131,24 +138,25 @@ image::лаб10.PNG[]
 #include "usart2registers.hpp" // for USART2
     void MessageTransmitter::Send(const std::string& message)
    {
+   //Скопировать строку в буфер
     std::copy_n(message.begin(), message.size(), buffer.begin());
     byteCounter = 0;
     USART2::DR::Write(buffer[byteCounter]);
-    USART2::CR1::TE::Enable::Set();
-    USART2::CR1::TXEIE::Enable::Set();
+    USART2::CR1::TE::Enable::Set(); //Разрешение передачи
+    USART2::CR1::TXEIE::Enable::Set(); //Разрешение прерывания по опустошении регистра передачи
     byteCounter++;
    }
-     void MessageTransmitter::OnByteTransmit()
+     void MessageTransmitter::OnByteTransmit() // Реализация метода OnByteTransmit
    {
-    if(byteCounter <= messageLength)
+    if(byteCounter <= messageLength) // Делаем прерывание каждый раз, когда выводим байт
       {
-        USART2::DR::Write(buffer[byteCounter]);
+        USART2::DR::Write(buffer[byteCounter]); // Разрешаем записать следующий байт
         byteCounter++;
       }
      else
       {
-        USART2::CR1::TE::Disable::Set();
-        USART2::CR1::TXEIE::Disable::Set();
+        USART2::CR1::TE::Disable::Set(); //Запрещаем передачу
+        USART2::CR1::TXEIE::Disable::Set(); //Запрещаем прерывание по опустошении регистра передачи
       }
     }
 
@@ -161,7 +169,7 @@ image::лаб10.PNG[]
     class MessageTransmitter
     {
     public:
-      static void Send(const std::string& message);
+      static void Send(const std::string& message); // Передача ссылки на строку
       static void OnByteTransmit();
     private:
       inline static std::array<uint8_t, 255> buffer = {};
