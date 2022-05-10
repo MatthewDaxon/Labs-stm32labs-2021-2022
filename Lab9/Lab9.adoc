@@ -22,7 +22,7 @@ image::image-78.2.png[]
 == 2) Программа
 === 1. Button
 
-Программа для работы кноки.
+Класс *Button* отвечает за кнопку, с помощью которой реализуется переключение модов. Данный класс основан на булевой логике, также предусмотрена защита от дребезга, то есть при нажатии на кнопку программа не должна проскакивать несколько режимов, а работать корректно.
 [source, c]
 #pragma once
 #include "gpiocregisters.hpp" //for GPIOC
@@ -50,6 +50,7 @@ class Button : public IButton
 };
 
 === 2. Led
+Класс *Led* отвечает за моргание светодиодов. Класс является шаблонным, поэтому нам необходимы два регистра:ODR и BSRR. Функция Toggle реализует мигание светодиодов, а функция Switchoff необходима для отключения светодиодов.
 [source, c]
 #pragma once
 #include <C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\LED\ILed.h>
@@ -106,7 +107,7 @@ class led : public ILed
 
 === 3. Класс All
 
-Данный класс реализован для постоянного моргания светодиодов.
+Класс *All*, отвечает за то, что светодиоды загораются и гаснут одновременн. В нем реализованно 2 операции toggle() и init().
 
 [source, c]
 #pragma once
@@ -156,7 +157,7 @@ public:
 
 === 5. Класс Tree
 
-Данный класс реализован для режима "Елочка".
+Класс *Tree* реализует режим "Ёлочка", то есть светодиоды загораются поочередно и гаснут одновременно.
 [source, c]
 #pragma once
 #include "C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\imods.h"
@@ -182,7 +183,7 @@ class Tree: public IMode
 };
 
 === 6. main
-
+В классе *main* реализуется настройка генератора частоты, светодиодов и таймера.
 [source, c]
 #include "rccregisters.hpp" // for RCC
 #include "gpioaregisters.hpp" //for Gpioa
