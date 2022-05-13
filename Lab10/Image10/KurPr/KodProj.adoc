@@ -1,0 +1,547 @@
+:imagesdir: Image10
+:toc:
+:toc-title: Оглавление
+= Код всей программы
+
+== Класс DMA
+
+DMA.h
+
+[source, c]
+#pragma once
+#include <cstdint>
+#include "rccregisters.hpp" //for RCC
+#include "dma2registers.hpp" //for DMA2
+#include "adc1registers.hpp"
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\ADC.h" //for ADC
+class DMA
+{
+public:
+void Setup();
+};
+inline DMA foradc;
+
+
+DMA.cpp
+
+[source, c]
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\DMA.h"
+void DMA::Setup()
+{
+//Подача тактирования на DMA2
+RCC::AHB1ENR::DMA2EN::Enable::Set();
+  //Выбор канала подачи тактирования
+  DMA2::S0CR::CHSEL::Set(0);
+  //Из периферии в память
+  DMA2::S0CR::DIR::Set(0);
+  //Количество выполняемых транзакций
+  DMA2::S0NDTR::NDT::Set(2);
+  //Копируем данные из АЦП
+  DMA2::S0PAR::Set(ADC1::DR::Address);
+  //Копируем адрес в буфер
+  DMA2::S0M0AR::Set(reinterpret_cast<uint32_t>(&ADC::buffer[0]));
+  //Не изменяя адрес копируем из ADC1
+  DMA2::S0CR::PINC::Set(0);
+  //Изменяем адрес памяти чтобы каждое значение записывалось в след. элемент массива
+  DMA2::S0CR::MINC::Set(1);
+  //Размер данных буфера слово - 32 бит
+  DMA2::S0CR::MSIZE::Set(2);
+  //Включение циклического режима
+  DMA2::S0CR::CIRC::Set(1);
+  //Приоритет высокий
+  DMA2::S0CR::PL::Set(3);
+  //Отключаем FIFO
+  DMA2::S0FCR::FEIE::Set(0);
+  //Размер слово, данных периферии на 32 бита
+  DMA2::S0CR::PSIZE::Set(2);
+  //Пакетная пересылка по памяти и по периферии в одиночную передачу
+  DMA2::S0CR::MBURST::Set(0);
+  DMA2::S0CR::PBURST::Set(0);
+  //Включаем поток
+  DMA2::S0CR::EN::Set(1);
+}
+
+
+== Класс ADC
+
+ADC.h
+
+[source, c]
+#pragma once
+#include <cstdint>
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\DMA.h"      //for DMA
+#include "adc1registers.hpp" //for ADC1
+#include "adccommonregisters.hpp" //for ADC_common
+class DMA;
+class ADC
+{
+public:
+ADC(DMA& dmaperif): dma(dmaperif)
+{
+}
+void Setup();
+void ConvertionNumder();
+static inline uint32_t buffer[2];
+private:
+DMA& dma;
+};
+
+
+ADC.cpp
+
+[source, c]
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\ADC.h"
+void ADC::Setup()
+{
+//Переключение на температурный сенсор
+ADC_Common::CCR::TSVREFE::Enable::Set();
+  //Установка режима непрерывного преобразования
+  ADC1::CR1::RES::Bits12::Set();
+  ADC1::CR2::CONT::SingleConversion::Set();
+  // Установка частоты дискретизации в 84 цикла для 18 канала.
+  ADC1::SMPR1::SMP18::Cycles84::Set();
+  // Установка частоты дискретизации в 84 цикла для 0 канала.
+  ADC1::SMPR2::SMP0::Cycles84::Set();
+  // Установка длины последовательного преобразования на 2
+  ADC1::SQR1::L::Conversions2::Set();
+  //Сканирование каналов
+  ADC1::CR1::SCAN::Enable::Set();
+  // Установка первого преобразования на 0 канал
+  ADC1::SQR3::SQ1::Set(0);
+  // Мерить с температурного канала
+  ADC1::SQR3::SQ2::Set(18);
+  // Запуск непрерывного преобразования
+  ADC1::CR2::CONT::Set(1);
+  // Режим DMA
+  ADC1::CR2::DMA::Enable::Set();
+  // Запрос преобразований DMA
+  ADC1::CR2::DDS::Set(1);
+  // Включим АЦП
+  ADC1::CR2::ADON::Set(1);
+  dma.Setup();
+}
+void ADC::ConvertionNumder()
+{
+// Запускаем преобразование на регулярном канале
+ADC1::CR2::SWSTART::Set(1);
+}
+
+
+== Класс Temper
+
+Temper.h
+
+[source, c]
+#pragma once
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\ADC.h" //for ADC
+class Temper
+{
+public:
+float DiscreteInTemp();
+private:
+const float b1 = (25.0F - 0.76F/0.0025F);
+const float k1 = (3.3F/4095.0F)/0.0025F;
+float TP;
+};
+
+
+Temper.cpp
+
+[source, c]
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\Temper.h"
+float Temper::DiscreteInTemp()
+{
+TP = static_cast<float>(ADC::buffer[1])*k1 + b1;
+return TP;
+}
+
+
+== Класс Voltage
+
+Voltage.h
+
+[source, c]
+#pragma once
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\ADC.h" //for ADC
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\DMA.h" //for dmaForADC
+class Voltage
+{
+public:
+Voltage()
+{
+adc.Setup();
+adc.ConvertionNumder();
+}
+float DiscreteInVolt();
+private:
+const float k = 3.29F;
+const uint32_t b = 4095U;
+float TD = 0.0f;
+ADC adc = ADC(foradc);
+};
+
+
+Voltage.cpp
+
+[source, c]
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\Voltage.h"
+float Voltage::DiscreteInVolt()
+{
+TD = static_cast<float>(ADC::buffer[0]*k/b);
+return TD;
+}
+
+
+== Класс FilterForTemp
+
+FilterForTemp.h
+
+[source, c]
+#pragma once
+#include <cmath>
+class FilterForTemp
+{
+public:
+float FilteredTemp(float temp);
+private:
+const float a = 0.5f;
+float filttemp = 0.0f;
+};
+
+
+FilterForTemp.cpp
+
+[source, c]
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\FilterForTemp.h" //for FilterForTemp
+float FilterForTemp::FilteredTemp(float temp)
+{
+filttemp = a * temp + (1.0f - a) * filttemp;
+return filttemp;
+}
+
+
+== Класс FilterForVolt
+
+FilterForVolt.h
+
+[source, c]
+#pragma once
+#include <cmath>
+class FilterForVolt
+{
+public:
+constexpr FilterForVolt(const float dt, const float rc):
+tau(1.0f - exp(-(dt)/(rc)))
+{
+}
+float FilteredVolt(float volt);
+private:
+const float tau = 0.0f;
+float filtvolt = 0.0f;
+};
+
+
+FilterForVolt.cpp
+
+[source, c]
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\FilterForVolt.h" //for FilterForVolt
+float FilterForVolt::FilteredVolt(float volt)
+{
+filtvolt = filtvolt + (volt - filtvolt) * tau;
+return filtvolt;
+}
+
+
+== Класс SendMessageTask
+
+SendMessageTask.h
+
+[source, c]
+#pragma once
+#include <string>
+#include "thread.hpp"                                                           //for Thread
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\Usart.h"                    //for Voltage
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\FloatToString.h"            //for FloatToString
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\Voltage.h"          //for Voltage
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\Temper.h"           //for Temper
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\FilterForVolt.h"    //for FilterForVolt
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\FilterForTemp.h"    //for FilterForTemp
+class SendMessageTask: public OsWrapper::Thread<100>
+{
+public:
+SendMessageTask(USART usar, FloatToString floattostr, string unitforvolt, string unitfortemp, Voltage voltage, Temper temper,
+FilterForVolt& filtforvoltage, FilterForTemp& filtfortemper): usart(usar), fstr(floattostr), unitV(unitforvolt), unitT(unitfortemp),
+volt(voltage), temp(temper), filtforvolt(filtforvoltage), filtfortemp(filtfortemper)
+{
+usart.Setup(9600U, 8'000'000U);
+}
+void Execute() override;
+std::string VoltToString();
+std::string TempToString();
+const char* CharVolt();
+const char* CharTemp();
+void Send();
+void delay(uint32_t value);
+private:
+FloatToString fstr;
+USART usart;
+string unitV;
+string unitT;
+Voltage volt;
+Temper temp;
+FilterForVolt& filtforvolt;
+FilterForTemp& filtfortemp;
+std::string strtemp;
+std::string strvolt;
+};
+
+
+SendMessageTask.cpp
+
+[source, c]
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\SendMessageTask.h"    //for SendMessageTask
+std::string SendMessageTask::VoltToString()
+{
+float tempVolt = volt.DiscreteInVolt();
+float tempFiltTemper = filtforvolt.FilteredVolt(tempVolt);
+strvolt = "Voltage: " + fstr.ToString(tempFiltTemper) + unitV + "       " + "\n";
+
+  return strvolt;
+}
+std::string SendMessageTask::TempToString()
+{
+  float tempTemper = temp.DiscreteInTemp();
+  float tempFiltTemper = filtfortemp.FilteredTemp(tempTemper);
+  strtemp = "Temperature: " + fstr.ToString(tempFiltTemper) + unitT + "       " + "\n";
+
+  return strtemp;
+}
+const char* SendMessageTask::CharVolt()
+{
+std::string volta = VoltToString();
+return volta.c_str();
+}
+const char* SendMessageTask::CharTemp()
+{
+std::string temp = TempToString();
+return temp.c_str();
+}
+void SendMessageTask::Send()
+{
+uint32_t rec = usart.Recieve();
+if(rec == 84U)
+{
+usart.Transmit(CharTemp());
+}
+else if(rec == 86U)
+{
+usart.Transmit(CharVolt());
+}
+}
+void SendMessageTask::delay(uint32_t value)
+{
+for(int32_t i = 0; i < value; ++i)
+{
+asm volatile("");
+}
+}
+void SendMessageTask::Execute()
+{
+uint32_t i =1;
+for(;;)
+{
+if(i==2)
+{
+filtforvolt.FilteredVolt(volt.DiscreteInVolt());
+i=0;
+}
+filtfortemp.FilteredTemp(temp.DiscreteInTemp());
+delay(500);
+Send();
+i++;
+}
+}
+
+
+== Класс FloatToString
+
+FloatToString.h
+
+[source, c]
+#pragma once
+#include <cstdio>
+#include <iostream>
+class FloatToString
+{
+public:
+constexpr FloatToString(uint32_t count): scale(count)
+{
+}
+std::string ToString(float value);
+private:
+char buf[10] = "";
+const uint32_t scale = 0U;
+};
+
+
+FloatToString.cpp
+
+[source, c]
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\FloatToString.h"
+std::string FloatToString::ToString(float value)
+{
+sprintf(buf, "%.*f", scale, value);
+return buf;
+}
+
+
+== Класс USART
+
+USART.h
+
+[source, c]
+#pragma once
+#include <cstdint>
+#include <cstdio>
+#include <iostream>
+#include "gpioaregisters.hpp"   //for GPIOA
+#include "rccregisters.hpp"     //for RCC
+#include "usart2registers.hpp"  //for USART2
+class USART
+{
+public:
+void Setup(uint32_t speed, uint32_t fgen);
+void OnRecieve();
+void OnTransmit();
+void Transmit(const char* ptr);
+uint32_t Recieve();
+};
+
+
+USART.cpp
+
+[source, c]
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\Usart.h"      //for USART
+void USART::Setup(uint32_t speed, uint32_t fgen)
+{
+//Порт А2 и А3 на альтернативный режим работы
+GPIOA::MODER::MODER2::Alternate::Set();
+GPIOA::MODER::MODER3::Alternate::Set();
+    //Назначение портов А2 и А3 на альтернативную функцию 7
+    GPIOA::AFRL::AFRL2::Af7::Set();  // USART2 Tx
+    GPIOA::AFRL::AFRL3::Af7::Set();  // USART2 Rx
+    //Подключаем USART2 к системе тактирования APB1
+    RCC::APB1ENR::USART2EN::Enable::Set();
+    // Режим переадескритезации на 16 бит
+    USART2::CR1::OVER8::OversamplingBy16::Set();
+    // Длинна слова 8 бит
+    USART2::CR1::M::Data8bits::Set();
+    // Отключение контроля четности
+    USART2::CR1::PCE::ParityControlDisable::Set();
+    // fgen МГц с внешнего генератора HSE
+    USART2::BRR::Write(fgen / speed);
+    //Очистка битов LINEN и CLKEN
+    USART2::CR2::LINEN::Set(0);
+    USART2::CR2::CLKEN::Set(0);
+      USART2::SR::TC::TransmitionComplete::IsSet();
+    //Очистка битов SCEN и IREN
+    USART2::CR3::SCEN::Set(0);
+    USART2::CR3::IREN::Set(0);
+    //Выбор полудуплексного режима
+   // USART2::CR3::HDSEL::Set(1);
+    USART2::CR2::STOP::Value2::IsSet();
+    USART2::CR1::IDLEIE::Set(1);
+    //USART2::CR1::TXEIE::Set(1);
+    // Включение USART2
+    USART2::CR1::UE::Enable::Set();
+}
+void USART::OnRecieve()
+{
+// Включение приемника
+USART2::CR1::RE::Enable::Set();
+}
+void USART::OnTransmit()
+{
+// Включение передатчика
+USART2::CR1::TE::Enable::Set();
+}
+void USART::Transmit(const char* ptr)
+{
+OnTransmit();
+while(*ptr!=0)
+{
+// Передача сообщения по USART
+USART2::DR::Write(*ptr);
+while(USART2::SR::TXE::DataRegisterNotEmpty::IsSet())
+{
+}
+    ptr++;
+  }
+}
+uint32_t USART::Recieve()
+{
+OnRecieve();
+  while(USART2::SR::RXNE::DataNotRecieved::IsSet())
+  {
+  }
+  return USART2::DR::Get();
+}
+
+== Main
+
+Main.cpp
+
+[source, c]
+#include "gpioaregisters.hpp" //for GPIOA
+#include "rccregisters.hpp" //for RCC
+#include "rtos.hpp"             //for RTOS
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\SendMessageTask.h"    //for SendMessageTask
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\Voltage.h" //for Voltage
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\Temper.h" //for Temper
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\FilterForVolt.h" //for FilterForVolt
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\FilterForTemp.h" //for FilterForTemp
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\FloatToString.h" //for FloatToString
+#include "C:\Users\User\Desktop\RtosWrapper\MyTasks\Usart.h" //for USART
+#include <iostream>
+#include <string>
+#include <cstdint>
+std::uint32_t SystemCoreClock = 16'000'000U;
+extern "C"
+{
+int __low_level_init(void)
+{
+//Switch on external 8 MHz oscillator
+RCC::CR::HSEON::On::Set();
+while (RCC::CR::HSERDY::NotReady::IsSet())
+{
+}
+    //Switch system clock on external oscillator
+    RCC::CFGR::SW::Hse::Set();
+    while (!RCC::CFGR::SWS::Hse::IsSet())
+     {
+     }
+    // Тактирование на линию А
+    RCC::AHB1ENR::GPIOAEN::Enable::Set();
+    // Настройка порта А.0
+    GPIOA::OSPEEDR::OSPEEDR0::LowSpeed::Set();
+    GPIOA::PUPDR::PUPDR0::PullUp::Set();
+    GPIOA::OTYPER::OT0::OutputPushPull::Set();
+    GPIOA::MODER::MODER0::Analog::Set();
+    //Переключение на частоту ADC1
+    RCC::APB2ENR::ADC1EN::Enable::Set();
+    return 1;
+  }
+}
+Voltage voltage;
+Temper temper;
+FilterForVolt filtervolt(50.0f, 50.0f);
+FilterForTemp filtertemp;
+USART usart;
+FloatToString fstr(3);
+SendMessageTask sendMessage(usart, fstr, " [B]", " [0C]", voltage, temper, filtervolt, filtertemp);
+int main(void)
+{
+  using namespace OsWrapper;
+  Rtos::CreateThread(sendMessage, "SendMessageTask", ThreadPriority::highest);
+  Rtos::Start();
+}
