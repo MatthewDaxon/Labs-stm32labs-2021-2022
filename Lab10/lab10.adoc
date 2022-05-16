@@ -69,6 +69,8 @@ image::img4.png[]
 .Регистр *TIMx_CR1*
 image::img5.png[]
 
+Листинг кода настройки таймера *TIM2* приведен ниже.
+
 [source, c]
  //Настройка таймера 2
 RCC::APB1ENR::TIM2EN::Enable::Set();
