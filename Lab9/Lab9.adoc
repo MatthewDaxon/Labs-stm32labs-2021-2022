@@ -426,7 +426,7 @@ GPIOA::OSPEEDR::OSPEEDR5::MediumSpeed::Set();
 Осталось проделать вышеперечисленные операции, создав функцию задержки. Создаем функцию задержки delayMs с использованием таймера:
 
 [source, c]
-void delayMs(uint32_t value)
+void DelayMs(uint32_t value)
 {
   const auto delay = (TimerClock * value) / 1000U ; //check
   TIM2::ARR::Write(delay);
