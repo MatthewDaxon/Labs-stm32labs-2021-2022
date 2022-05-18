@@ -669,8 +669,6 @@ Modes<&allMode, &chessMode, &treeMode > modesMode;
 #include "C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\Modes.h"
 #include "C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\Tree.h"
 #include "C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\imods.h"
-#include "tim2registers.hpp"   //for SPI2
-#include "nvicregisters.hpp"  //for NVIC
 std::uint32_t SystemCoreClock = 16'000'000U;
 extern "C"
 {
