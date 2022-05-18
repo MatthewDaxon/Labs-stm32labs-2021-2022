@@ -422,6 +422,30 @@ public:
 === 5. Класс Chess
 
 Данный класс реализован для попеременног моргания 1 и 3, 2 и 4 светодиодов.
+
+Ссылаемся на контейнер TLeds
+
+[source, c]
+template <auto& TLeds>
+
+Далее наследуем публичный класс IMode
+
+[source, c]
+class Chess : public IMode
+
+Поскольку переопределяем метод абстрактного класса IMode, то нужен override
+
+[source, c]
+void toggle() override 
+
+Далее, если получаем остаток от деления, равный нулю, переключаем светодиоды
+
+[source, c]
+if ((index %2U)==0) 
+    {
+     it ->toggle(); 
+    }
+    
 [source, c]
 #pragma once
 #include "C:\Users\User\Documents\GitHub\stm32Labs\Lab2\AHardware\imods.h"
